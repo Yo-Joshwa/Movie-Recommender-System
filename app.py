@@ -136,21 +136,6 @@ all_options = (
 )
 selected_movie = st.selectbox("🎬 Select a Movie:", all_options)
 
-def fetch_poster(movie_title):
-    """Fetch the movie poster URL from TMDB API"""
-    api_key = "8265bd1679663a7ea12ac168da84d2e8"  
-    url = f"https://api.themoviedb.org/3/search/movie?api_key={api_key}&query={movie_title}"
-
-    response = requests.get(url)
-    data = response.json()
-
-    if data.get("results") and len(data["results"]) > 0:
-        poster_path = data["results"][0].get("poster_path") 
-        if poster_path:
-            return f"https://image.tmdb.org/t/p/w500{poster_path}"  # Construct full poster URL
-
-    return "https://via.placeholder.com/500x750?text=No+Image+Available"  # Fallback image
-
 if st.button("Recommend"):
     st.subheader("Recommended Movies:")
     
