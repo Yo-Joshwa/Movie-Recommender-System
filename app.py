@@ -165,8 +165,20 @@ def fetch_poster(movie_title):
 
 if st.button("Recommend"):
     st.subheader("Recommended Movies:")
+    # userId
+    selected_movie_id = movies[movies['title'] == selected_movie]['id'].values
 
-    recommended_movies,recommended_movie_posters = hybrid_recommend(1, selected_movie, alpha=0.6, n=5)
+    if len(selected_movie_id) > 0:
+        selected_movie_id = selected_movie_id[0]
+        matching_users = ratings[ratings['movieId'] == selected_movie_id]['userId'].values
+        if len(matching_users) > 0:
+            user_id = matching_users[0]  
+        else:
+            user_id = 1  
+    else:
+        user_id = 1
+
+    recommended_movies,recommended_movie_posters = hybrid_recommend(user_id, selected_movie, alpha=0.6, n=5)
     
     if recommended_movies:
         cols = st.columns(5)  
