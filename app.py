@@ -4,7 +4,6 @@ import requests
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import NearestNeighbors
 from surprise import Dataset, Reader, SVD
 from surprise.model_selection import train_test_split
@@ -14,13 +13,13 @@ credits = pd.read_csv("tmdb_5000_credits.csv")
 
 ratings = movies[['id', 'title', 'vote_average', 'vote_count']].copy()
 ratings = ratings.rename(columns={'id': 'movieId'})  
-ratings = ratings[ratings['vote_count'] > 50]  
 ratings['userId'] = np.random.randint(1, 1000, size=len(ratings)) 
-ratings['rating'] = ratings['vote_average'] / 2  
+ratings['rating'] = ratings['vote_average'] 
 
 movies = movies.merge(credits, on="title")
+
 import ast
-def extract_names(obj, key, top_n=3):
+def extract_names(obj, key, top_n=5):
     try:
         obj = ast.literal_eval(obj) 
         names = [person[key] for person in obj[:top_n]]  
@@ -31,16 +30,22 @@ def extract_names(obj, key, top_n=3):
 movies['genres'] = movies['genres'].apply(lambda x: extract_names(x, 'name'))
 movies['keywords'] = movies['keywords'].apply(lambda x: extract_names(x, 'name'))
 movies['cast'] = movies['cast'].apply(lambda x: extract_names(x, 'name'))
-movies['crew'] = movies['crew'].apply(lambda x: extract_names(x, 'job'))
 
-movies['director'] = movies['crew'].apply(lambda x: x if 'Director' in x else '')
+def get_director(obj):
+    try:
+        obj = ast.literal_eval(obj)
+        for person in obj:
+            if person.get('job') == 'Director':
+                return person.get('name', '')
+        return ''
+    except:
+        return ''
+
+movies['director'] = movies['crew'].apply(lambda x: get_director(x))
 
 movies['combined_features'] = movies['genres'] + " " + movies['keywords'] + " " + movies['cast'] + " " + movies['director']
 
-# movies['tags'] = movies['tags'].apply(lambda x:x.lower())
-# movies['title'] = movies['title'].apply(lambda x:x.lower())
-
-reader = Reader(rating_scale=(1, 5))
+reader = Reader(rating_scale=(1, 10))
 data = Dataset.load_from_df(ratings[['userId', 'movieId', 'rating']], reader)
 
 trainset, testset = train_test_split(data, test_size=0.2)
@@ -95,18 +100,20 @@ def hybrid_recommend(user_id, title, alpha=0.6, n=5):
     # print(collab)
     hybrid = list(set(content + collab))
     
-    if title not in hybrid:
-        hybrid.append(title)  
+    # if title not in hybrid:
+    #     hybrid.append(title)  
         
     movie_s = {movie: (alpha * content.count(movie) + (1 - alpha) * collab.count(movie))
                     for movie in hybrid}
 
     sorted_movies = sorted(movie_s, key=movie_s.get, reverse=True)
 
-    if title in sorted_movies:
-        sorted_movies.remove(title)
+    # if title in sorted_movies:
+    #     sorted_movies.remove(title)
         
-    sorted_movies.insert(0, title)  # Place searched movie at the top
+    # sorted_movies.insert(0, title)  
+    
+        
     
     recommended_movie_posters = [fetch_poster(movie) for movie in sorted_movies[:n]]
     
@@ -129,14 +136,17 @@ movies['title'] = movies['title'].fillna("Unknown")
 
 st.title("Movie Recommender System")
 
-all_options = (
-    movies["title"].tolist() +
-    [actor.strip() for cast in movies["cast"] for actor in cast.split(",")] +
-    movies["director"].tolist()
-)
-selected_movie = st.selectbox("🎬 Select a Movie:", all_options)
 
+titles = movies["title"].tolist()
+directors = movies["director"].tolist()
 
+actor_names = set()
+for actor_list in movies["cast"]:
+    actor_names.update([actor.strip() for actor in actor_list if actor.strip()])
+
+all_options = list(set(titles + list(actor_names) + directors))
+
+selected_movie = st.selectbox(" Select a Movie:", all_options)
 
 def fetch_poster(movie_title):
     """Fetch the movie poster URL from TMDB API"""
@@ -151,13 +161,12 @@ def fetch_poster(movie_title):
         if poster_path:
             return f"https://image.tmdb.org/t/p/w500{poster_path}"  
 
-    return "https://via.placeholder.com/500x750?text=No+Image+Available" 
-
+    return "https://upload.wikimedia.org/wikipedia/commons/a/ac/No_image_available.svg"  
 
 if st.button("Recommend"):
     st.subheader("Recommended Movies:")
-    
-    recommended_movies,recommended_movie_posters = hybrid_recommend(1, selected_movie, alpha=0.6, n=10)
+
+    recommended_movies,recommended_movie_posters = hybrid_recommend(1, selected_movie, alpha=0.6, n=5)
     
     if recommended_movies:
         cols = st.columns(5)  
